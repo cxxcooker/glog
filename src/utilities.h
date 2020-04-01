@@ -172,6 +172,7 @@ WallTime WallTime_Now();
 
 int32 GetMainThreadPid();
 bool PidHasChanged();
+bool HourHasChanged();  // 小时翻滚取代进程号翻滚
 
 pid_t GetTID();
 

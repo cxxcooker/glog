@@ -395,6 +395,22 @@ DECLARE_bool(stop_logging_if_full_disk);
 // LOG(INFO) and its ilk are used all over our code, it's
 // better to have compact code for these operations.
 
+// 支持新加日志等级的输出
+#define COMPACT_GOOGLE_LOG_TRACE @ac_google_namespace@::LogMessage( \
+    __FILE__, __LINE__, @ac_google_namespace@::GLOG_TRACE)
+#define LOG_TO_STRING_TRACE(message) @ac_google_namespace@::LogMessage( \
+    __FILE__, __LINE__, @ac_google_namespace@::GLOG_TRACE, message)
+
+#define COMPACT_GOOGLE_LOG_DEBUG @ac_google_namespace@::LogMessage( \
+    __FILE__, __LINE__, @ac_google_namespace@::GLOG_DEBUG)
+#define LOG_TO_STRING_DEBUG(message) @ac_google_namespace@::LogMessage( \
+    __FILE__, __LINE__, @ac_google_namespace@::GLOG_DEBUG, message)
+
+#define COMPACT_GOOGLE_LOG_NOTICE @ac_google_namespace@::LogMessage( \
+    __FILE__, __LINE__, @ac_google_namespace@::GLOG_NOTICE)
+#define LOG_TO_STRING_NOTICE(message) @ac_google_namespace@::LogMessage( \
+    __FILE__, __LINE__, @ac_google_namespace@::GLOG_NOTICE, message)
+
 #if GOOGLE_STRIP_LOG == 0
 #define COMPACT_GOOGLE_LOG_INFO @ac_google_namespace@::LogMessage( \
       __FILE__, __LINE__)
@@ -1685,5 +1701,136 @@ GOOGLE_GLOG_DLL_DECL void InstallFailureWriter(
     void (*writer)(const char* data, int size));
 
 @ac_google_end_namespace@
+
+/* TODO:删除。临时兼容glog2speech的旧接口 */
+namespace speech {
+    void glog2speech_writelog(int severity, const char *file, int line, const char *fmt, ...);
+}
+int glog2speech_init(int severity, const char *argv0, const char *dir, const char *file, int delay = 0);
+#ifdef CLOSE_DEBUG_LOG
+#define DEBUG_LOG(fmt, arg...) ((void *)(0))
+#else
+#define DEBUG_LOG(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_DEBUG, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_NOTICE_LOG
+#define NOTICE_LOG(fmt, arg...) ((void *)(0))
+#else
+#define NOTICE_LOG(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_NOTICE, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_TRACE_LOG
+#define TRACE_LOG(fmt, arg...) ((void *)(0))
+#else
+#define TRACE_LOG(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_TRACE, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_INFO_LOG
+#define INFO_LOG(fmt, arg...) ((void*)(0))
+#else
+#define INFO_LOG(fmt, arg...)                                                            \
+    do {                                                                                 \
+        speech::glog2speech_writelog(google::GLOG_INFO, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_WARNING_LOG
+#define WARNING_LOG(fmt, arg...) ((void *)(0))
+#else
+#define WARNING_LOG(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_WARNING, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_ERROR_LOG
+#define ERROR_LOG(fmt, arg...) ((void *)(0))
+#else
+#define ERROR_LOG(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_ERROR, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_FATAL_LOG
+#define FATAL_LOG(fmt, arg...) ((void *)(0))
+#else
+#define FATAL_LOG(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_ERROR, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_log_debug
+#define log_debug(fmt, arg...) ((void *)(0))
+#else
+#define log_debug(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_DEBUG, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_log_notice
+#define log_notice(fmt, arg...) ((void *)(0))
+#else
+#define log_notice(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_NOTICE, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_log_trace
+#define log_trace(fmt, arg...) ((void *)(0))
+#else
+#define log_trace(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_TRACE, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_log_info
+#define log_info(fmt, arg...) ((void *)(0))
+#else
+#define log_info(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_INFO, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_log_warn
+#define log_warn(fmt, arg...) ((void *)(0))
+#else
+#define log_warn(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_WARNING, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_log_error
+#define log_error(fmt, arg...) ((void *)(0))
+#else
+#define log_error(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_ERROR, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
+
+#ifdef CLOSE_log_fatal
+#define log_fatal(fmt, arg...) ((void *)(0))
+#else
+#define log_fatal(fmt, arg...) \
+    do { \
+        speech::glog2speech_writelog(google::GLOG_ERROR, __FILE__, __LINE__, fmt, ##arg); \
+    } while (0)
+#endif
 
 #endif // _LOGGING_H_

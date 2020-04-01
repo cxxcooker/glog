@@ -59,14 +59,12 @@
 // you ever need to change their values or add a new severity.
 typedef int LogSeverity;
 
-const int GLOG_INFO = 0, GLOG_WARNING = 1, GLOG_ERROR = 2, GLOG_FATAL = 3,
-  NUM_SEVERITIES = 4;
+const int GLOG_TRACE = 0, GLOG_DEBUG = 1, GLOG_INFO = 2, GLOG_NOTICE = 3, GLOG_WARNING = 4, GLOG_ERROR = 5, GLOG_FATAL = 6, NUM_SEVERITIES = 7;
 #ifndef GLOG_NO_ABBREVIATED_SEVERITIES
 # ifdef ERROR
 #  error ERROR macro is defined. Define GLOG_NO_ABBREVIATED_SEVERITIES before including logging.h. See the document for detail.
 # endif
-const int INFO = GLOG_INFO, WARNING = GLOG_WARNING,
-  ERROR = GLOG_ERROR, FATAL = GLOG_FATAL;
+const int DEBUG = GLOG_DEBUG, NOTICE = GLOG_NOTICE, TRACE = GLOG_TRACE, INFO = GLOG_INFO, WARNING = GLOG_WARNING, ERROR = GLOG_ERROR, FATAL = GLOG_FATAL;
 #endif
 
 // DFATAL is FATAL in debug mode, ERROR in normal mode

@@ -380,13 +380,13 @@ struct LogMessage::LogMessageData  {
 static Mutex log_mutex;
 
 // Number of messages sent at each severity.  Under log_mutex.
-int64 LogMessage::num_messages_[NUM_SEVERITIES] = {0, 0, 0, 0};
+int64 LogMessage::num_messages_[NUM_SEVERITIES] = {0, 0, 0, 0, 0, 0, 0};
 
 // Globally disable log writing (if disk is full)
 static bool stop_writing = false;
 
 const char*const LogSeverityNames[NUM_SEVERITIES] = {
-  "INFO", "WARNING", "ERROR", "FATAL"
+  "TRACE", "DEBUG", "INFO", "NOTICE", "WARNING", "ERROR", "FATAL"
 };
 
 // Has the user called SetExitOnDFatal(true)?
@@ -790,6 +790,7 @@ inline void LogDestination::LogToAllLogfiles(LogSeverity severity,
     ColoredWriteToStderr(severity, message, len);
   } else {
     for (int i = severity; i >= 0; --i)
+      // 因为在init中只指定了特定级别的输出，所以实质只有一个输出目标，接受高等级日志
       LogDestination::MaybeLogToLogfile(i, timestamp, message, len);
   }
 }
@@ -1011,7 +1012,7 @@ bool LogFileObject::CreateLogfile(const string& time_pid_string) {
   int flags = O_WRONLY | O_CREAT;
   if (FLAGS_timestamp_in_logfile_name) {
     //demand that the file is unique for our timestamp (fail if it exists).
-    flags = flags | O_EXCL;
+    flags = flags | O_APPEND;
   }
   int fd = open(filename, flags, FLAGS_logfile_mode);
   if (fd == -1) return false;
@@ -1113,7 +1114,7 @@ void LogFileObject::Write(bool force_flush,
   }
 
   if (static_cast<int>(file_length_ >> 20) >= MaxLogSize() ||
-      PidHasChanged()) {
+      HourHasChanged()) {
     if (file_ != NULL) fclose(file_);
     file_ = NULL;
     file_length_ = bytes_since_flush_ = dropped_mem_length_ = 0;
@@ -1131,18 +1132,14 @@ void LogFileObject::Write(bool force_flush,
     struct ::tm tm_time;
     localtime_r(&timestamp, &tm_time);
 
-    // The logfile's filename will have the date/time & pid in it
+    // 设置文件名后缀
     ostringstream time_pid_stream;
     time_pid_stream.fill('0');
-    time_pid_stream << 1900+tm_time.tm_year
+    time_pid_stream << "."
+                    << setw(4) << 1900+tm_time.tm_year
                     << setw(2) << 1+tm_time.tm_mon
                     << setw(2) << tm_time.tm_mday
-                    << '-'
-                    << setw(2) << tm_time.tm_hour
-                    << setw(2) << tm_time.tm_min
-                    << setw(2) << tm_time.tm_sec
-                    << '.'
-                    << GetMainThreadPid();
+                    << setw(2) << tm_time.tm_hour;
     const string& time_pid_string = time_pid_stream.str();
 
     if (base_filename_selected_) {
@@ -1153,62 +1150,15 @@ void LogFileObject::Write(bool force_flush,
         return;
       }
     } else {
-      // If no base filename for logs of this severity has been set, use a
-      // default base filename of
-      // "<program name>.<hostname>.<user name>.log.<severity level>.".  So
-      // logfiles will have names like
-      // webserver.examplehost.root.log.INFO.19990817-150000.4354, where
-      // 19990817 is a date (1999 August 17), 150000 is a time (15:00:00),
-      // and 4354 is the pid of the logging process.  The date & time reflect
-      // when the file was created for output.
-      //
-      // Where does the file get put?  Successively try the directories
-      // "/tmp", and "."
-      string stripped_filename(
-          glog_internal_namespace_::ProgramInvocationShortName());
-      string hostname;
-      GetHostName(&hostname);
-
-      string uidname = MyUserName();
-      // We should not call CHECK() here because this function can be
-      // called after holding on to log_mutex. We don't want to
-      // attempt to hold on to the same mutex, and get into a
-      // deadlock. Simply use a name like invalid-user.
-      if (uidname.empty()) uidname = "invalid-user";
-
-      stripped_filename = stripped_filename+'.'+hostname+'.'
-                          +uidname+".log."
-                          +LogSeverityNames[severity_]+'.';
-      // We're going to (potentially) try to put logs in several different dirs
-      const vector<string> & log_dirs = GetLoggingDirectories();
-
-      // Go through the list of dirs, and try to create the log file in each
-      // until we succeed or run out of options
-      bool success = false;
-      for (vector<string>::const_iterator dir = log_dirs.begin();
-           dir != log_dirs.end();
-           ++dir) {
-        base_filename_ = *dir + "/" + stripped_filename;
-        if ( CreateLogfile(time_pid_string) ) {
-          success = true;
-          break;
-        }
-      }
-      // If we never succeeded, we have to give up
-      if ( success == false ) {
-        perror("Could not create logging file");
-        fprintf(stderr, "COULD NOT CREATE A LOGGINGFILE %s!",
-                time_pid_string.c_str());
         return;
-      }
     }
 
     // Write a header message into the log file
     ostringstream file_header_stream;
     file_header_stream.fill('0');
     file_header_stream << "Log file created at: "
-                       << 1900+tm_time.tm_year << '/'
-                       << setw(2) << 1+tm_time.tm_mon << '/'
+                       << 1900+tm_time.tm_year << '-'
+                       << setw(2) << 1+tm_time.tm_mon << '-'
                        << setw(2) << tm_time.tm_mday
                        << ' '
                        << setw(2) << tm_time.tm_hour << ':'
@@ -1217,7 +1167,7 @@ void LogFileObject::Write(bool force_flush,
                        << "Running on machine: "
                        << LogDestination::hostname() << '\n'
                        << "Log line format: [IWEF]yyyymmdd hh:mm:ss.uuuuuu "
-                       << "threadid file:line] msg" << '\n';
+                       << "threadid [file:line] msg" << '\n';
     const string& file_header_string = file_header_stream.str();
 
     const int header_len = file_header_string.size();
@@ -1427,25 +1377,20 @@ void LogMessage::Init(const char* file,
   data_->fullname_ = file;
   data_->has_been_flushed_ = false;
 
-  // If specified, prepend a prefix to each line.  For example:
-  //    I20201018 160715 f5d4fbb0 logging.cc:1153]
-  //    (log level, GMT year, month, date, time, thread_id, file basename, line)
-  // We exclude the thread_id for the default thread.
+  // 修改每行日志的前缀格式
   if (FLAGS_log_prefix && (line != kNoLogPrefix)) {
-    stream() << LogSeverityNames[severity][0]
-             << setw(4) << 1900+data_->tm_time_.tm_year
-             << setw(2) << 1+data_->tm_time_.tm_mon
+    stream() << LogSeverityNames[severity][0] << ' '
+             << setw(4) << 1900+data_->tm_time_.tm_year << '-'
+             << setw(2) << 1+data_->tm_time_.tm_mon << '-'
              << setw(2) << data_->tm_time_.tm_mday
-             << ' '
+             << 'T'
              << setw(2) << data_->tm_time_.tm_hour  << ':'
              << setw(2) << data_->tm_time_.tm_min   << ':'
              << setw(2) << data_->tm_time_.tm_sec   << "."
-             << setw(6) << data_->usecs_
-             << ' '
+             << setw(6) << data_->usecs_ << ' '
              << setfill(' ') << setw(5)
              << static_cast<unsigned int>(GetTID()) << setfill('0')
-             << ' '
-             << data_->basename_ << ':' << data_->line_ << "] ";
+             << " [" << data_->basename_ << ':' << data_->line_ << "] ";
   }
   data_->num_prefix_chars_ = data_->stream_.pcount();
 
@@ -1834,19 +1779,17 @@ string LogSink::ToString(LogSeverity severity, const char* file, int line,
   ostringstream stream(string(message, message_len));
   stream.fill('0');
 
-  stream << LogSeverityNames[severity][0]
-         << setw(4) << 1900+tm_time->tm_year
-         << setw(2) << 1+tm_time->tm_mon
+  stream << LogSeverityNames[severity][0] << ' '
+         << setw(4) << 1900 + tm_time->tm_year << '-'
+         << setw(2) << 1 + tm_time->tm_mon << '-'
          << setw(2) << tm_time->tm_mday
-         << ' '
+         << 'T'
          << setw(2) << tm_time->tm_hour << ':'
          << setw(2) << tm_time->tm_min << ':'
          << setw(2) << tm_time->tm_sec << '.'
-         << setw(6) << usecs
-         << ' '
+         << setw(6) << usecs << ' '
          << setfill(' ') << setw(5) << GetTID() << setfill('0')
-         << ' '
-         << file << ':' << line << "] ";
+         << " [" << file << ':' << line << "] ";
 
   stream << string(message, message_len);
   return stream.str();
@@ -2342,3 +2285,90 @@ void DisableLogCleaner() {
 }
 
 _END_GOOGLE_NAMESPACE_
+
+#include <cstdio>
+#include <cstdarg>
+#include <ctime>
+#include <fstream>
+#include <string>
+namespace speech {
+    void glog2speech_writelog(int severity, const char *file, int line, const char *fmt, ...) {
+        char buf[1024 * 10];
+        char* buf2 = NULL;
+        size_t buf2len = 1024 * 500;
+        va_list argptr;
+        va_start(argptr, fmt);
+        int ret = vsnprintf(buf, sizeof(buf), fmt, argptr);
+        va_end(argptr);
+        if ((size_t)ret >= sizeof(buf)) {
+            buf2 = (char*)malloc(buf2len);
+            if (buf2 != NULL) {
+                va_start(argptr, fmt);
+                vsnprintf(buf2, buf2len, fmt, argptr);
+                va_end(argptr);
+            }
+        }
+        buf[sizeof(buf) - 1] = '\0';
+        if (severity <= 0) {
+            severity = 0;
+        }
+
+        if (severity >= google::GLOG_ERROR) {
+            severity = google::GLOG_ERROR;  // 不允许旧接口使用FATAL
+        }
+
+        if (buf2 != NULL) {
+            google::LogMessage(file, line, severity).stream() << buf2;
+            free(buf2);
+        } else {
+            google::LogMessage(file, line, severity).stream() << buf;
+        }
+        return;
+    }
+}
+
+#include <fstream>
+static bool g_glog2speech_is_init = false;
+void FileSignalHandler(const char* data, int size) {
+    std::ofstream ofs("glog_dump.log", std::ios::app);
+    ofs << std::string(data, size);
+    ofs.close();
+}
+int glog2speech_init(int severity, const char *argv0, const char *dir, const char *file, int delay) {
+    if (argv0 == NULL || dir == NULL || file == NULL) {
+        fprintf(stderr, "glog2speech_init failed param illegal argv0:%s dir:%s file:%s",
+                argv0, dir, file);
+        return -1;
+    }
+
+    if (severity <= 0) {
+        severity = 0;  // 新旧接口都能确定，最小的级别是0
+    }
+
+    if (severity >= google::GLOG_FATAL) {
+        severity = google::GLOG_FATAL;
+    }
+    char path[256] = {0};
+    snprintf(path, sizeof(path), "%s/%s", dir, file);
+    google::InitGoogleLogging(argv0);
+    google::SetLogDestination(severity, path);
+    /*output log delay time ; 0 real time flush*/
+    FLAGS_logbufsecs = delay;
+    /*set log preifx if false not ouput prefix[severity YY-MM-DD HH:MM:SS.usec]*/
+    FLAGS_log_prefix = true;
+    /* 日志最低记录等级 */
+    FLAGS_minloglevel = severity;
+    FLAGS_logbuflevel = severity;
+    /*max size 100M bytes*/
+    FLAGS_max_log_size = 100;
+    /*if disk full stop logging*/
+    FLAGS_stop_logging_if_full_disk = true;
+    /*set color*/
+    FLAGS_colorlogtostderr = true;
+    /*set stderr ouput*/
+    google::SetStderrLogging(google::FATAL);
+    google::InstallFailureSignalHandler();  // 收集线程退出信号时的堆栈信息
+    google::InstallFailureWriter(&FileSignalHandler); /* 自定义输出方式，必须主线程调用 */
+    g_glog2speech_is_init = true;
+    return 0;
+}

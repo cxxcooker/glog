@@ -8,3 +8,14 @@ See INSTALL for (generic) installation instructions for C++: basically
 ```sh
 ./autogen.sh && ./configure && make && make install
 ```
+
+### modification
+- author: niuqiang
+- date: 2020-04-01 13:57:02
+feature:
+1. 修改文件命名后缀，并按小时轮转
+2. 修改每行日志前缀
+3. 添加日志等级
+4. 添加对旧glog2speech格式化接口的兼容
+5. 添加全局初始化设置，并支持信号捕捉
+6. 添加示例

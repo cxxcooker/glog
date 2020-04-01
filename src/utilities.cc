@@ -234,6 +234,19 @@ bool PidHasChanged() {
   return true;
 }
 
+static int32 g_main_hour = -1;
+bool HourHasChanged() {
+    time_t raw_time = time(NULL);
+    struct tm tm_r;
+    struct tm* tm_cur = localtime_r(&raw_time, &tm_r);
+    if (tm_cur->tm_hour != g_main_hour) {
+        g_main_hour = tm_cur->tm_hour;
+        return true;
+    } else {
+      return false;
+    }
+}
+
 pid_t GetTID() {
   // On Linux and MacOSX, we try to use gettid().
 #if defined OS_LINUX || defined OS_MACOSX
