@@ -1,4 +1,4 @@
-LIBGLOG=../install
+LIBGLOG=/home/niuqiang/projects/speech-util/glog-master-dist
 
 INC=\
 	-I$(LIBGLOG)/include

@@ -1379,7 +1379,7 @@ void LogMessage::Init(const char* file,
 
   // 修改每行日志的前缀格式
   if (FLAGS_log_prefix && (line != kNoLogPrefix)) {
-    stream() << LogSeverityNames[severity][0] << ' '
+    stream() << '[' << LogSeverityNames[severity] << "]["
              << setw(4) << 1900+data_->tm_time_.tm_year << '-'
              << setw(2) << 1+data_->tm_time_.tm_mon << '-'
              << setw(2) << data_->tm_time_.tm_mday
@@ -1387,10 +1387,10 @@ void LogMessage::Init(const char* file,
              << setw(2) << data_->tm_time_.tm_hour  << ':'
              << setw(2) << data_->tm_time_.tm_min   << ':'
              << setw(2) << data_->tm_time_.tm_sec   << "."
-             << setw(6) << data_->usecs_ << ' '
+             << setw(6) << data_->usecs_ << "]["
              << setfill(' ') << setw(5)
              << static_cast<unsigned int>(GetTID()) << setfill('0')
-             << " [" << data_->basename_ << ':' << data_->line_ << "] ";
+             << "][" << data_->basename_ << ':' << data_->line_ << "] ";
   }
   data_->num_prefix_chars_ = data_->stream_.pcount();
 
